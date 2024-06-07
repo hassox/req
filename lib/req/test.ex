@@ -384,11 +384,21 @@ defmodule Req.Test do
             raise "no mock or stub for #{inspect(name)}"
         end
 
-      {:shared_owner, owner} when is_pid(owner) ->
-        result = Req.Test.Ownership.get_owned(@ownership, owner)[name]
+      {:shared_owner, owner} ->
+        result =
+          Req.Test.Ownership.get_and_update(@ownership, owner, name, fn
+            %{expectations: [value | rest]} = map ->
+              {{:ok, value}, put_in(map[:expectations], rest)}
+
+            %{stub: value} = map ->
+              {{:ok, value}, map}
+
+            %{expectations: []} = map ->
+              {{:error, :no_expectations_and_no_stub}, map}
+          end)
 
         case result do
-          %{stub: value} ->
+          {:ok, {:ok, value}} ->
             value
 
           {:ok, {:error, :no_expectations_and_no_stub}} ->
